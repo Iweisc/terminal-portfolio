@@ -39,17 +39,28 @@ I specialize in MERN/MEAN stack, for lightweight applications i like to use MFRN
 ==================
 
 1. Verisum
-   - Instantly find, summarize, and verify information from a website  
-   - Built with Preact, TypeScript, OpenAI backend, tts-service(self-hostable), vectorDB, embeddings, chrome:storage. 
-   - Features: Spotlight (Instantly do Q&A with data pulled directly from the website), PopUP (Do Q&A and verify the websites information) 
+   - Instantly find, summarize, and verify information from 
+     a website
+   - Built with Preact, TypeScript, OpenAI backend, 
+     tts-service(self-hostable), vectorDB, embeddings, 
+     chrome:storage
+   - Features: Spotlight (Instantly do Q&A with data pulled 
+     directly from the website), PopUP (Do Q&A and verify 
+     the websites information)
 
 2. ReadAloud 
-   - Reading pdf/ebooks reimagined. 
-   - Bult with React, Flask, custom pdf processor, kokoro.js, transformers.js, custom flipbook reader, custom pdf viewer, OCR, custom image processor. 
+   - Reading pdf/ebooks reimagined
+   - Built with React, Flask, custom pdf processor, kokoro.js, 
+     transformers.js, custom flipbook reader, custom pdf viewer, 
+     OCR, custom image processor
 
 3. Censorship API
-   - Its a highly performant censorship api that censors text input under ≈ sub-10ms. The api is also capable of censor large pdf files under 2-3s (With cache can go as low as 0.6ms)
-   - Built with FastAPI, RoBERTa-large, pillow, pdf2image, pytesseract, thefuzz, uvicorn.  
+   - A highly performant censorship api that censors text input 
+     under ≈ sub-10ms. The api is also capable of censoring 
+     large pdf files under 2-3s (With cache can go as low 
+     as 0.6ms)
+   - Built with FastAPI, RoBERTa-large, pillow, pdf2image, 
+     pytesseract, thefuzz, uvicorn
 
 Try 'github' to see more on my GitHub profile!`,
 
