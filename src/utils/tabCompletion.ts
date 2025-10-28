@@ -44,16 +44,16 @@ export function completeCommand(
 }
 
 /**
- * Handle tab completion for file arguments
+ * Handle tab completion for file/directory arguments
  * Supports cycling through multiple matches
  * @param command - Full command string
- * @param availableFiles - List of available files
+ * @param availableOptions - List of available files/directories (already resolved with full paths)
  * @param state - Tab completion state object
  * @returns Completed command with file or original
  */
 export function completeFileArgument(
   command: string,
-  availableFiles: string[],
+  availableOptions: string[],
   state: TabCompletionState
 ): string {
   const parts = command.split(' ');
@@ -64,7 +64,7 @@ export function completeFileArgument(
   
   const commandName = parts[0];
   const args = parts.slice(1);
-  const partialFilename = args[args.length - 1] || '';
+  const partialPath = args[args.length - 1] || '';
 
   // Check if we're continuing the same tab completion
   if (command.startsWith(state.prefix) && state.matches.length > 0) {
@@ -75,14 +75,14 @@ export function completeFileArgument(
   }
   
   // New tab completion - find all matches
-  const matches = availableFiles.filter(file =>
-    file.startsWith(partialFilename)
-  );
+  const matches = availableOptions;
 
   if (matches.length > 0) {
     state.matches = matches;
-    state.prefix = `${commandName} ${partialFilename}`;
+    state.prefix = `${commandName} ${partialPath}`;
     state.index = 0;
+    
+    // The match already contains the full path from resolvePathForCompletion
     return `${commandName} ${matches[0]}`;
   }
   
@@ -93,22 +93,33 @@ export function completeFileArgument(
  * Main tab completion handler
  * @param command - Current command string
  * @param availableCommands - List of available commands
- * @param availableFiles - List of available files
+ * @param currentDir - Current working directory
+ * @param resolvePathFn - Function to resolve paths based on current directory
  * @param state - Tab completion state object
  * @returns Completed command
  */
 export function handleTabCompletion(
   command: string,
   availableCommands: string[],
-  availableFiles: string[],
+  currentDir: string,
+  resolvePathFn: (currentDir: string, partialPath: string, directoriesOnly: boolean) => string[],
   state: TabCompletionState
 ): string {
   const parts = command.split(' ');
   const commandName = parts[0];
 
-  // File completion for cat command with arguments
+  // Directory completion for cd command
+  if (commandName === 'cd' && parts.length >= 2) {
+    const partialPath = parts.slice(1).join(' ');
+    const matches = resolvePathFn(currentDir, partialPath, true);
+    return completeFileArgument(command, matches, state);
+  }
+
+  // File/directory completion for cat command
   if (commandName === 'cat' && parts.length >= 2) {
-    return completeFileArgument(command, availableFiles, state);
+    const partialPath = parts.slice(1).join(' ');
+    const matches = resolvePathFn(currentDir, partialPath, false);
+    return completeFileArgument(command, matches, state);
   }
   
   // Regular command completion

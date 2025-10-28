@@ -1,17 +1,16 @@
 import { get } from "svelte/store";
-import packageJson from "../../package.json";
-import themes from "../../themes.json";
 import { history } from "../stores/history";
-import { theme } from "../stores/theme";
 import { todoManager } from "./todo";
 import { themeSelectorActive } from "../stores/themeSelector";
-import { files, availableFiles } from "../data/files";
+import { currentDirectory } from "../stores/filesystem";
+import { filesystem, type FileNode } from "../data/files";
 import type { Command } from "../interfaces/command";
 
 export const commands: Record<string, (args: string[]) => Promise<string> | string> = {
   help: () => {
     const categories = {
-      System: ["help", "clear", "date", "exit", "ls", "cat"],
+      System: ["help", "clear", "date", "exit", "ls", "cat", "pwd", "cd", "tree"],
+      Info: ["whoami", "neofetch"],
       Productivity: ["todo", "weather"],
       Customization: ["theme"],
       Contact: ["email", "github"],
@@ -33,11 +32,31 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
   },
   date: () => new Date().toLocaleString(),
   ls: () => {
-    return `welcome.txt
-about.txt
-projects.txt
-skills.txt
-contact.txt`;
+    const cwd = get(currentDirectory);
+    
+    if (cwd === '~') {
+      const entries = Object.entries(filesystem).map(([name, node]) => {
+        return node.type === 'directory' ? `${name}/` : name;
+      });
+      return entries.join('\n');
+    }
+    
+    // Navigate to the directory
+    const pathParts = cwd.split('/').filter(p => p && p !== '~');
+    let current: Record<string, FileNode> = filesystem;
+    
+    for (const part of pathParts) {
+      const node = current[part];
+      if (!node || node.type !== 'directory' || !node.children) {
+        return `ls: cannot access '${cwd}': No such directory`;
+      }
+      current = node.children;
+    }
+    
+    const entries = Object.entries(current).map(([name, node]) => {
+      return node.type === 'directory' ? `${name}/` : name;
+    });
+    return entries.join('\n');
   },
   cat: (args: string[]) => {
     if (args.length === 0) {
@@ -45,15 +64,40 @@ contact.txt`;
 Try 'cat [filename]' or 'ls' to see available files.`;
     }
 
-    const filename = args[0];
-    const content = files[filename];
-
-    if (content) {
-      return content;
+    const filepath = args[0];
+    const cwd = get(currentDirectory);
+    
+    // Handle absolute vs relative paths
+    let pathParts: string[];
+    if (filepath.startsWith('~/') || filepath.startsWith('/')) {
+      pathParts = filepath.replace('~/', '').replace(/^\//, '').split('/').filter(p => p);
     } else {
-      return `cat: ${filename}: No such file or directory
-Try 'ls' to see available files.`;
+      const cwdParts = cwd.split('/').filter(p => p && p !== '~');
+      pathParts = [...cwdParts, ...filepath.split('/').filter(p => p)];
     }
+    
+    // Navigate to the file
+    let current: Record<string, FileNode> = filesystem;
+    const filename = pathParts[pathParts.length - 1];
+    const dirParts = pathParts.slice(0, -1);
+    
+    for (const part of dirParts) {
+      const node = current[part];
+      if (!node || node.type !== 'directory' || !node.children) {
+        return `cat: ${filepath}: No such file or directory`;
+      }
+      current = node.children;
+    }
+    
+    const file = current[filename];
+    if (!file) {
+      return `cat: ${filepath}: No such file or directory`;
+    }
+    if (file.type === 'directory') {
+      return `cat: ${filepath}: Is a directory`;
+    }
+    
+    return file.content || '';
   },
   vi: () => `why use vi? try 'emacs'`,
   vim: () => `why use vim? try 'emacs'`,
@@ -186,5 +230,122 @@ Examples:
       default:
         return `Unknown todo command: ${subCommand}\n\n${usage}`;
     }
+  },
+  whoami: () => {
+    return `Abdullah Al Zawad
+
+Full-stack developer specializing in MERN/MEAN stack
+Passionate about building user-friendly applications
+
+Type 'cat about.txt' for more information
+Type 'neofetch' to see my tech stack`;
+  },
+  pwd: () => {
+    return get(currentDirectory);
+  },
+  cd: (args: string[]) => {
+    if (args.length === 0 || args[0] === '~') {
+      currentDirectory.set('~');
+      return '';
+    }
+    
+    const targetPath = args[0];
+    const cwd = get(currentDirectory);
+    
+    // Handle .. (parent directory)
+    if (targetPath === '..') {
+      if (cwd === '~') {
+        return ''; // Already at root
+      }
+      const parts = cwd.split('/').filter(p => p && p !== '~');
+      parts.pop();
+      currentDirectory.set(parts.length === 0 ? '~' : `~/${parts.join('/')}`);
+      return '';
+    }
+    
+    // Build the full path
+    let pathParts: string[];
+    if (targetPath.startsWith('~/') || targetPath.startsWith('/')) {
+      pathParts = targetPath.replace('~/', '').replace(/^\//, '').split('/').filter(p => p);
+    } else {
+      const cwdParts = cwd.split('/').filter(p => p && p !== '~');
+      pathParts = [...cwdParts, ...targetPath.split('/').filter(p => p)];
+    }
+    
+    // Verify the directory exists
+    let current: Record<string, FileNode> = filesystem;
+    for (const part of pathParts) {
+      const node = current[part];
+      if (!node) {
+        return `cd: ${targetPath}: No such file or directory`;
+      }
+      if (node.type !== 'directory') {
+        return `cd: ${targetPath}: Not a directory`;
+      }
+      if (!node.children) {
+        return `cd: ${targetPath}: Permission denied`;
+      }
+      current = node.children;
+    }
+    
+    const newPath = pathParts.length === 0 ? '~' : `~/${pathParts.join('/')}`;
+    currentDirectory.set(newPath);
+    return '';
+  },
+  tree: () => {
+    const buildTree = (node: Record<string, FileNode>, prefix: string = '', isLast: boolean = true): string => {
+      const entries = Object.entries(node);
+      let result = '';
+      
+      entries.forEach(([name, fileNode], index) => {
+        const isLastEntry = index === entries.length - 1;
+        const connector = isLastEntry ? '└── ' : '├── ';
+        const displayName = fileNode.type === 'directory' ? `${name}/` : name;
+        
+        result += prefix + connector + displayName + '\n';
+        
+        if (fileNode.type === 'directory' && fileNode.children) {
+          const newPrefix = prefix + (isLastEntry ? '    ' : '│   ');
+          result += buildTree(fileNode.children, newPrefix, isLastEntry);
+        }
+      });
+      
+      return result;
+    };
+    
+    const cwd = get(currentDirectory);
+    let title = cwd === '~' ? '.' : cwd.replace('~/', '');
+    
+    if (cwd === '~') {
+      return title + '\n' + buildTree(filesystem);
+    }
+    
+    // Navigate to current directory
+    const pathParts = cwd.split('/').filter(p => p && p !== '~');
+    let current: Record<string, FileNode> = filesystem;
+    
+    for (const part of pathParts) {
+      const node = current[part];
+      if (!node || node.type !== 'directory' || !node.children) {
+        return `tree: ${cwd}: No such directory`;
+      }
+      current = node.children;
+    }
+    
+    return title + '\n' + buildTree(current);
+  },
+  neofetch: () => {
+    return `
+         ___        Abdullah Al Zawad
+        (.. |       ---------------------
+        (<> |       OS: Web Terminal
+       / __  \\      Shell: zedpholio
+      ( /  \\ /|     Languages: JavaScript, TypeScript, Python
+     _/\\ __)/_)     Frontend: React, Svelte, Angular
+     \\/-____\\/      Backend: Node.js, Flask, FastAPI
+                    Tools: Docker, Git, Linux
+                    
+Type 'cat skills.txt' for more details
+Type 'cat projects.txt' to see my projects`;
   },
 };

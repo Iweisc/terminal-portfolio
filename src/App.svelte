@@ -5,8 +5,10 @@
   import History from './components/History.svelte';
   import ThemeSelector from './components/ThemeSelector.svelte';
   import UsernamePrompt from './components/UsernamePrompt.svelte';
+  import HistoryViewer from './components/HistoryViewer.svelte';
   import { theme } from './stores/theme';
   import { themeSelectorActive } from './stores/themeSelector';
+  import { historyViewerActive } from './stores/commandHistory';
   import { usernamePromptShown } from './stores/username';
   import { history } from './stores/history';
   import { commands } from './utils/commands';
@@ -53,6 +55,25 @@
     const input = document.getElementById('command-input') as HTMLInputElement;
     input?.focus();
   };
+
+  const handleHistoryViewerClose = async () => {
+    const savedHistory = sessionStorage.getItem('historyViewerHistory');
+    if (savedHistory) {
+      try {
+        const previousHistory = JSON.parse(savedHistory);
+        history.set([...previousHistory, { command: 'history', outputs: ['History viewer closed'] }]);
+        sessionStorage.removeItem('historyViewerHistory');
+      } catch (e) {
+        console.error('Failed to restore history:', e);
+      }
+    }
+    
+    historyViewerActive.set(false);
+    
+    await tick();
+    const input = document.getElementById('command-input') as HTMLInputElement;
+    input?.focus();
+  };
 </script>
 
 <svelte:head>
@@ -77,6 +98,10 @@
 
     {#if $themeSelectorActive}
       <ThemeSelector onClose={handleThemeSelectorClose} />
+    {/if}
+
+    {#if $historyViewerActive}
+      <HistoryViewer onClose={handleHistoryViewerClose} />
     {/if}
 
     <div class="flex flex-col md:flex-row">

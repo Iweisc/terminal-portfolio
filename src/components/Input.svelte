@@ -5,8 +5,10 @@
   import { commands } from '../utils/commands';
   import { track } from '../utils/tracking';
   import { themeSelectorActive } from '../stores/themeSelector';
+  import { historyViewerActive } from '../stores/commandHistory';
   import { usernamePromptShown } from '../stores/username';
-  import { availableFiles } from '../data/files';
+  import { resolvePathForCompletion } from '../data/files';
+  import { currentDirectory } from '../stores/filesystem';
   import { 
     createTabCompletionState, 
     resetTabCompletion, 
@@ -145,7 +147,7 @@
   });
 
   const handleKeyDown = async (event: KeyboardEvent) => {
-    if ($themeSelectorActive) {
+    if ($themeSelectorActive || $historyViewerActive) {
       return;
     }
 
@@ -166,9 +168,9 @@
       if (commandFunction) {
         const output = await commandFunction(args);
 
-        if (commandName === 'theme') {
-          // Theme command opens TUI and clears history
-          // The handleThemeSelectorClose in App.svelte will restore and update history
+        if (commandName === 'theme' || commandName === 'history') {
+          // Theme/history command opens TUI and clears/saves history
+          // The handler in App.svelte will restore and update history
           $history = [{ command, outputs: [] }];
         } else if (commandName !== 'clear') {
           $history = [...$history, { command, outputs: [output] }];
@@ -206,7 +208,8 @@
       command = handleTabCompletion(
         command,
         Object.keys(commands),
-        availableFiles,
+        $currentDirectory,
+        resolvePathForCompletion,
         tabCompletionState
       );
     } else if (event.ctrlKey && event.key === 'l') {
@@ -236,6 +239,6 @@
     bind:value={command}
     on:keydown={handleKeyDown}
     bind:this={input}
-    disabled={$themeSelectorActive}
+    disabled={$themeSelectorActive || $historyViewerActive}
   />
 </div>
