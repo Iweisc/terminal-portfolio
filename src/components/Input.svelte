@@ -7,8 +7,42 @@
   import { themeSelectorActive } from '../stores/themeSelector';
   import { availableFiles } from '../data/files';
 
-  // Calculate Levenshtein distance for fuzzy matching
-  function levenshteinDistance(a: string, b: string): number {
+  // Keyboard proximity map for common typos
+  const keyboardProximity: Record<string, string> = {
+    'q': 'wa', 'w': 'qeas', 'e': 'wrds', 'r': 'etf', 't': 'ryg', 'y': 'tuh', 'u': 'yij', 'i': 'uok', 'o': 'ipl', 'p': 'ol',
+    'a': 'qwsz', 's': 'awedxz', 'd': 'serfcx', 'f': 'drtgvc', 'g': 'ftyhbv', 'h': 'gyujnb', 'j': 'huikmn', 'k': 'jiol', 'l': 'kop',
+    'z': 'asx', 'x': 'zsdc', 'c': 'xdfv', 'v': 'cfgb', 'b': 'vghn', 'n': 'bhjm', 'm': 'njk'
+  };
+
+  // Check if two characters are similar (keyboard proximity or common substitutions)
+  function areCharactersSimilar(a: string, b: string): boolean {
+    if (a === b) return true;
+    
+    // Check keyboard proximity
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    
+    if (keyboardProximity[aLower]?.includes(bLower)) return true;
+    if (keyboardProximity[bLower]?.includes(aLower)) return true;
+    
+    // Common substitutions (vowels, similar looking letters)
+    const similarGroups = [
+      ['a', 'e', 'o'],
+      ['i', 'l', '1'],
+      ['o', '0'],
+      ['s', 'z'],
+      ['c', 'k']
+    ];
+    
+    for (const group of similarGroups) {
+      if (group.includes(aLower) && group.includes(bLower)) return true;
+    }
+    
+    return false;
+  }
+
+  // Calculate weighted Levenshtein distance with character similarity
+  function levenshteinDistanceWeighted(a: string, b: string): number {
     const matrix: number[][] = [];
 
     for (let i = 0; i <= b.length; i++) {
@@ -24,10 +58,13 @@
         if (b.charAt(i - 1) === a.charAt(j - 1)) {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
+          // Lower cost for similar characters
+          const substitutionCost = areCharactersSimilar(b.charAt(i - 1), a.charAt(j - 1)) ? 0.5 : 1;
+          
           matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
+            matrix[i - 1][j - 1] + substitutionCost, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1  // deletion
           );
         }
       }
@@ -42,11 +79,10 @@
     let minDistance = Infinity;
 
     for (const cmd of availableCommands) {
-      const distance = levenshteinDistance(input.toLowerCase(), cmd.toLowerCase());
+      const distance = levenshteinDistanceWeighted(input.toLowerCase(), cmd.toLowerCase());
       
-      // Only suggest if distance is small (1-2 characters different)
-      // and the command is similar in length
-      if (distance <= 2 && distance < minDistance && Math.abs(input.length - cmd.length) <= 2) {
+      // Only suggest if distance is small and length is similar
+      if (distance <= 1.5 && distance < minDistance && Math.abs(input.length - cmd.length) <= 2) {
         minDistance = distance;
         closestCommand = cmd;
       }
