@@ -4,22 +4,24 @@
   import Ps1 from './Ps1.svelte';
 </script>
 
-{#each $history as { command, outputs }}
-  <div style={`color: ${$theme.foreground}`}>
-    <div class="flex flex-col md:flex-row">
-      <Ps1 />
+<div style={`color: ${$theme.foreground}`}>
+  {#each $history as { command, outputs }}
+    <div>
+      <div class="flex flex-col md:flex-row">
+        <Ps1 />
 
-      <div class="flex">
-        <p class="visible md:hidden">❯</p>
+        <div class="flex">
+          <p class="visible md:hidden">❯</p>
 
-        <p class="px-2">{command}</p>
+          <p class="px-2">{command}</p>
+        </div>
       </div>
-    </div>
 
-    {#each outputs as output}
-      <p class="whitespace-pre">
-        {output}
-      </p>
-    {/each}
-  </div>
-{/each}
+      {#each outputs as output}
+        <p class="whitespace-pre">
+          {output}
+        </p>
+      {/each}
+    </div>
+  {/each}
+</div>

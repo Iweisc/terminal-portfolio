@@ -3,17 +3,16 @@ import themes from "../../themes.json";
 import { history } from "../stores/history";
 import { theme } from "../stores/theme";
 import { todoManager } from "./todo";
-
-const hostname = window.location.hostname;
+import { themeSelectorActive } from "../stores/themeSelector";
+import { files, availableFiles } from "../data/files";
 
 export const commands: Record<string, (args: string[]) => Promise<string> | string> = {
   help: () => {
     const categories = {
-      System: ["help", "clear", "date", "exit"],
+      System: ["help", "clear", "date", "exit", "ls", "cat"],
       Productivity: ["todo", "weather"],
-      Customization: ["theme", "banner"],
-      Network: ["curl", "hostname", "whoami"],
-      Contact: ["email", "repo", "donate"],
+      Customization: ["theme"],
+      Contact: ["email", "github"],
       Fun: ["echo", "sudo", "vi", "vim", "emacs"],
     };
 
@@ -30,9 +29,30 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
 
     return output;
   },
-  hostname: () => hostname,
-  whoami: () => "guest",
   date: () => new Date().toLocaleString(),
+  ls: () => {
+    return `welcome.txt
+about.txt
+projects.txt
+skills.txt
+contact.txt`;
+  },
+  cat: (args: string[]) => {
+    if (args.length === 0) {
+      return `cat: missing file operand
+Try 'cat [filename]' or 'ls' to see available files.`;
+    }
+
+    const filename = args[0];
+    const content = files[filename];
+
+    if (content) {
+      return content;
+    } else {
+      return `cat: ${filename}: No such file or directory
+Try 'ls' to see available files.`;
+    }
+  },
   vi: () => `why use vi? try 'emacs'`,
   vim: () => `why use vim? try 'emacs'`,
   emacs: () => `why use emacs? try 'vim'`,
@@ -42,54 +62,19 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
 
     return `Permission denied: unable to run the command '${args[0]}' as root.`;
   },
-  theme: (args: string[]) => {
-    const usage = `Usage: theme [args].
-    [args]:
-      ls: list all available themes
-      set: set theme to [theme]
-
-    [Examples]:
-      theme ls
-      theme set gruvboxdark
-    `;
-    if (args.length === 0) {
-      return usage;
-    }
-
-    switch (args[0]) {
-      case "ls": {
-        let result = themes.map((t) => t.name.toLowerCase()).join(", ");
-        result += `You can preview all these themes here: ${packageJson.repository.url}/tree/master/docs/themes`;
-
-        return result;
-      }
-
-      case "set": {
-        if (args.length !== 2) {
-          return usage;
-        }
-
-        const selectedTheme = args[1];
-        const t = themes.find((t) => t.name.toLowerCase() === selectedTheme);
-
-        if (!t) {
-          return `Theme '${selectedTheme}' not found. Try 'theme ls' to see all available themes.`;
-        }
-
-        theme.set(t);
-
-        return `Theme set to ${selectedTheme}`;
-      }
-
-      default: {
-        return usage;
-      }
-    }
-  },
-  repo: () => {
-    window.open(packageJson.repository.url, "_blank");
-
-    return "Opening repository...";
+  theme: () => {
+    // Get current history value
+    let historySnapshot: any[] = [];
+    const unsubscribe = history.subscribe(h => {
+      historySnapshot = [...h];
+    });
+    unsubscribe();
+    
+    // Store in sessionStorage so ThemeSelector can restore it
+    sessionStorage.setItem('themeCommandHistory', JSON.stringify(historySnapshot));
+    
+    themeSelectorActive.set(true);
+    return "";
   },
   clear: () => {
     history.set([]);
@@ -97,14 +82,13 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
     return "";
   },
   email: () => {
-    window.open(`mailto:${packageJson.author.email}`);
-
-    return `Opening mailto:${packageJson.author.email}...`;
+    return "coderzawad@gmail.com";
   },
-  donate: () => {
-    window.open(packageJson.funding.url, "_blank");
+  github: () => {
+    const githubUrl = "https://github.com/Iweisc";
+    window.open(githubUrl, "_blank");
 
-    return "Opening donation url...";
+    return `Opening GitHub profile: ${githubUrl}`;
   },
   weather: async (args: string[]) => {
     const city = args.join("+");
@@ -120,32 +104,6 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
   exit: () => {
     return "Please close the tab to exit.";
   },
-  curl: async (args: string[]) => {
-    if (args.length === 0) {
-      return "curl: no URL provided";
-    }
-
-    const url = args[0];
-
-    try {
-      const response = await fetch(url);
-      const data = await response.text();
-
-      return data;
-    } catch (error) {
-      return `curl: could not fetch URL ${url}. Details: ${error}`;
-    }
-  },
-  banner: () => `
-███╗   ███╗██╗  ██╗████████╗████████╗███████╗██████╗
-████╗ ████║██║  ██║╚══██╔══╝╚══██╔══╝╚════██║╚════██╗
-██╔████╔██║███████║   ██║      ██║       ██╔╝ █████╔╝
-██║╚██╔╝██║╚════██║   ██║      ██║      ██╔╝ ██╔═══╝
-██║ ╚═╝ ██║     ██║   ██║      ██║      ██║  ███████╗
-╚═╝     ╚═╝     ╚═╝   ╚═╝      ╚═╝      ╚═╝  ╚══════╝ v${packageJson.version}
-
-Type 'help' to see list of available commands.
-`,
   todo: (args: string[]) => {
     const usage = `Usage: todo [command] [args]
 
