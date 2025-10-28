@@ -9,6 +9,7 @@
   let searchQuery = '';
   let selectedIndex = 0;
   let container: HTMLDivElement;
+  let insertMode = false; // Vim-style insert mode for searching
 
   $: filteredThemes = themes.filter(t => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -30,13 +31,50 @@
   }
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    // Handle navigation keys
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'k', 'j', 'h', 'l', 'Enter', 'Escape', 'q'].includes(event.key)) {
+    // In INSERT MODE: handle search input
+    if (insertMode) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        insertMode = false; // Exit insert mode
+        return;
+      }
+      
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        searchQuery = searchQuery.slice(0, -1);
+        return;
+      }
+      
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (filteredThemes.length > 0) {
+          theme.set(filteredThemes[selectedIndex]);
+          onClose(filteredThemes[selectedIndex]);
+        }
+        return;
+      }
+      
+      // Handle regular character input for search
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        searchQuery += event.key;
+        selectedIndex = 0; // Reset to first result when searching
+      }
+      return;
+    }
+
+    // In NAVIGATION MODE: handle vim-style navigation
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'k', 'j', 'h', 'l', 'Enter', 'Escape', 'i'].includes(event.key)) {
       event.preventDefault();
       event.stopPropagation();
     }
 
     switch (event.key) {
+      case 'i':
+        insertMode = true; // Enter insert mode
+        break;
       case 'ArrowUp':
       case 'k':
         selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : filteredThemes.length - 1;
@@ -61,18 +99,6 @@
         break;
       case 'Escape':
         onClose(null);
-        break;
-      case 'Backspace':
-        event.preventDefault();
-        searchQuery = searchQuery.slice(0, -1);
-        break;
-      default:
-        // Handle regular character input for search
-        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-          event.preventDefault();
-          searchQuery += event.key;
-          selectedIndex = 0; // Reset to first result when searching
-        }
         break;
     }
   };
@@ -114,12 +140,19 @@
     <div class="mb-3">
       <div style={`color: ${$theme.cyan}; font-weight: bold;`}>╔═ Theme Selector ═╗</div>
       <div style={`color: ${$theme.brightBlack}`}>Navigation: ↑↓←→ or hjkl | Select: Enter | Cancel: Esc</div>
-      <div style={`color: ${$theme.brightBlack}`}>Search: Type to filter | Clear: Backspace</div>
-      {#if searchQuery}
-        <div style={`color: ${$theme.yellow}; margin-top: 0.5rem;`}>
-          Search: "{searchQuery}" ({filteredThemes.length} results)
-        </div>
-      {/if}
+      <div style={`color: ${$theme.brightBlack}`}>Search: Press 'i' for insert mode | Esc to exit search</div>
+      <div style={`margin-top: 0.5rem;`}>
+        {#if insertMode}
+          <span style={`color: ${$theme.yellow}; font-weight: bold;`}>-- INSERT --</span>
+          {#if searchQuery}
+            <span style={`color: ${$theme.foreground}; margin-left: 0.5rem;`}>
+              "{searchQuery}" ({filteredThemes.length} results)
+            </span>
+          {/if}
+        {:else}
+          <span style={`color: ${$theme.green}; font-weight: bold;`}>-- NORMAL --</span>
+        {/if}
+      </div>
     </div>
     <div class="max-h-96 overflow-y-auto" style={`border: 1px solid ${$theme.brightBlack}; padding: 0.5rem;`}>
       {#if filteredThemes.length === 0}
