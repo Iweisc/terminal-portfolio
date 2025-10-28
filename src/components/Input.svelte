@@ -5,16 +5,31 @@
   import { commands } from '../utils/commands';
   import { track } from '../utils/tracking';
   import { themeSelectorActive } from '../stores/themeSelector';
+  import { usernamePromptShown } from '../stores/username';
   import { availableFiles } from '../data/files';
+  import { 
+    createTabCompletionState, 
+    resetTabCompletion, 
+    handleTabCompletion,
+    type TabCompletionState 
+  } from '../utils/tabCompletion';
 
-  // Keyboard proximity map for common typos
+  /**
+   * Keyboard proximity map for common typos
+   * Maps each key to its adjacent keys on a QWERTY keyboard
+   */
   const keyboardProximity: Record<string, string> = {
     'q': 'wa', 'w': 'qeas', 'e': 'wrds', 'r': 'etf', 't': 'ryg', 'y': 'tuh', 'u': 'yij', 'i': 'uok', 'o': 'ipl', 'p': 'ol',
     'a': 'qwsz', 's': 'awedxz', 'd': 'serfcx', 'f': 'drtgvc', 'g': 'ftyhbv', 'h': 'gyujnb', 'j': 'huikmn', 'k': 'jiol', 'l': 'kop',
     'z': 'asx', 'x': 'zsdc', 'c': 'xdfv', 'v': 'cfgb', 'b': 'vghn', 'n': 'bhjm', 'm': 'njk'
   };
 
-  // Check if two characters are similar (keyboard proximity or common substitutions)
+  /**
+   * Check if two characters are similar based on keyboard proximity or common substitutions
+   * @param a First character
+   * @param b Second character
+   * @returns true if characters are similar
+   */
   function areCharactersSimilar(a: string, b: string): boolean {
     if (a === b) return true;
     
@@ -41,7 +56,14 @@
     return false;
   }
 
-  // Calculate weighted Levenshtein distance with character similarity
+  /**
+   * Calculate weighted Levenshtein distance with character similarity
+   * Uses dynamic programming to compute edit distance with custom weights
+   * for similar characters (e.g., keyboard-adjacent keys get lower cost)
+   * @param a First string
+   * @param b Second string
+   * @returns Weighted edit distance between strings
+   */
   function levenshteinDistanceWeighted(a: string, b: string): number {
     const matrix: number[][] = [];
 
@@ -73,6 +95,12 @@
     return matrix[b.length][a.length];
   }
 
+  /**
+   * Find the closest matching command for typo correction
+   * Uses weighted Levenshtein distance to suggest corrections
+   * @param input User's input command
+   * @returns Closest matching command or null if no good match
+   */
   function findClosestCommand(input: string): string | null {
     const availableCommands = Object.keys(commands);
     let closestCommand: string | null = null;
@@ -93,16 +121,15 @@
 
   let command = '';
   let historyIndex = -1;
-  let tabCompletionIndex = -1;
-  let lastTabCompletionMatches: string[] = [];
-  let lastTabCompletionPrefix = '';
+  let tabCompletionState: TabCompletionState = createTabCompletionState();
 
   let input: HTMLInputElement;
 
   onMount(() => {
     input.focus();
 
-    if ($history.length === 0) {
+    // Only show welcome message if username is already set
+    if ($usernamePromptShown && $history.length === 0) {
       const catCommand = commands['cat'] as (args: string[]) => string;
 
       if (catCommand) {
@@ -124,9 +151,7 @@
 
     // Reset tab completion if user types something other than Tab
     if (event.key !== 'Tab') {
-      tabCompletionIndex = -1;
-      lastTabCompletionMatches = [];
-      lastTabCompletionPrefix = '';
+      resetTabCompletion(tabCompletionState);
     }
     
     if (event.key === 'Enter') {
@@ -178,49 +203,12 @@
       event.preventDefault();
     } else if (event.key === 'Tab') {
       event.preventDefault();
-
-      const parts = command.split(' ');
-      const commandName = parts[0];
-      const args = parts.slice(1);
-
-      // If we're completing a filename for cat command
-      if (commandName === 'cat' && parts.length >= 2) {
-        const partialFilename = args[args.length - 1] || '';
-
-        // Check if we're continuing the same tab completion
-        if (command.startsWith(lastTabCompletionPrefix) && lastTabCompletionMatches.length > 0) {
-          // Cycle to next match
-          tabCompletionIndex = (tabCompletionIndex + 1) % lastTabCompletionMatches.length;
-          const match = lastTabCompletionMatches[tabCompletionIndex];
-          command = `${commandName} ${match}`;
-        } else {
-          // New tab completion - find all matches
-          const matches = availableFiles.filter(file =>
-            file.startsWith(partialFilename)
-          );
-
-          if (matches.length > 0) {
-            lastTabCompletionMatches = matches;
-            lastTabCompletionPrefix = `${commandName} ${partialFilename}`;
-            tabCompletionIndex = 0;
-            command = `${commandName} ${matches[0]}`;
-          }
-        }
-      } else {
-        // Regular command completion
-        const autoCompleteCommand = Object.keys(commands).find((cmd) =>
-          cmd.startsWith(command),
-        );
-
-        if (autoCompleteCommand) {
-          command = autoCompleteCommand;
-        }
-
-        // Reset tab completion state
-        tabCompletionIndex = -1;
-        lastTabCompletionMatches = [];
-        lastTabCompletionPrefix = '';
-      }
+      command = handleTabCompletion(
+        command,
+        Object.keys(commands),
+        availableFiles,
+        tabCompletionState
+      );
     } else if (event.ctrlKey && event.key === 'l') {
       event.preventDefault();
 

@@ -77,19 +77,22 @@
     }
   };
 
+  let keydownListenerActive = false;
+
   onMount(() => {
-    // Delay adding the event listener to avoid catching the Enter key
-    // that triggered the theme command
-    setTimeout(() => {
+    // Use requestAnimationFrame for better timing than arbitrary timeouts
+    // This waits for the next animation frame after mount
+    requestAnimationFrame(() => {
       window.addEventListener('keydown', handleKeyDown);
-    }, 100);
-    setTimeout(() => {
+      keydownListenerActive = true;
       container?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 10);
+    });
   });
 
   onDestroy(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    if (keydownListenerActive) {
+      window.removeEventListener('keydown', handleKeyDown);
+    }
   });
 
   $: {

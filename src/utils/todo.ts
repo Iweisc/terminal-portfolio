@@ -16,34 +16,44 @@ class TodoManager {
   }
 
   private loadTodos(): void {
-    const stored = localStorage.getItem(this.storageKey);
-    if (stored) {
-      try {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (stored) {
         const parsed = JSON.parse(stored);
-        this.todos = parsed.todos || [];
-        this.nextId = parsed.nextId || 1;
-        // Convert date strings back to Date objects
-        this.todos = this.todos.map((todo) => ({
-          ...todo,
-          createdAt: new Date(todo.createdAt),
-          completedAt: todo.completedAt
-            ? new Date(todo.completedAt)
-            : undefined,
-        }));
-      } catch (e) {
-        console.error("Failed to load todos:", e);
+        // Validate parsed data structure
+        if (parsed && typeof parsed === 'object') {
+          this.todos = Array.isArray(parsed.todos) ? parsed.todos : [];
+          this.nextId = typeof parsed.nextId === 'number' ? parsed.nextId : 1;
+          // Convert date strings back to Date objects
+          this.todos = this.todos.map((todo) => ({
+            ...todo,
+            createdAt: new Date(todo.createdAt),
+            completedAt: todo.completedAt
+              ? new Date(todo.completedAt)
+              : undefined,
+          }));
+        }
       }
+    } catch (e) {
+      console.error("Failed to load todos from localStorage:", e);
+      // Reset to default state on error
+      this.todos = [];
+      this.nextId = 1;
     }
   }
 
   private saveTodos(): void {
-    localStorage.setItem(
-      this.storageKey,
-      JSON.stringify({
-        todos: this.todos,
-        nextId: this.nextId,
-      })
-    );
+    try {
+      localStorage.setItem(
+        this.storageKey,
+        JSON.stringify({
+          todos: this.todos,
+          nextId: this.nextId,
+        })
+      );
+    } catch (e) {
+      console.error("Failed to save todos to localStorage:", e);
+    }
   }
 
   add(text: string): string {

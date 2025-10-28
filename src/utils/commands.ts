@@ -1,3 +1,4 @@
+import { get } from "svelte/store";
 import packageJson from "../../package.json";
 import themes from "../../themes.json";
 import { history } from "../stores/history";
@@ -5,6 +6,7 @@ import { theme } from "../stores/theme";
 import { todoManager } from "./todo";
 import { themeSelectorActive } from "../stores/themeSelector";
 import { files, availableFiles } from "../data/files";
+import type { Command } from "../interfaces/command";
 
 export const commands: Record<string, (args: string[]) => Promise<string> | string> = {
   help: () => {
@@ -63,15 +65,15 @@ Try 'ls' to see available files.`;
     return `Permission denied: unable to run the command '${args[0]}' as root.`;
   },
   theme: () => {
-    // Get current history value
-    let historySnapshot: any[] = [];
-    const unsubscribe = history.subscribe(h => {
-      historySnapshot = [...h];
-    });
-    unsubscribe();
+    // Get current history value using get()
+    const historySnapshot: Command[] = get(history);
     
     // Store in sessionStorage so ThemeSelector can restore it
-    sessionStorage.setItem('themeCommandHistory', JSON.stringify(historySnapshot));
+    try {
+      sessionStorage.setItem('themeCommandHistory', JSON.stringify(historySnapshot));
+    } catch (e) {
+      console.error('Failed to save history to sessionStorage:', e);
+    }
     
     themeSelectorActive.set(true);
     return "";
@@ -97,9 +99,18 @@ Try 'ls' to see available files.`;
       return "Usage: weather [city]. Example: weather Brussels";
     }
 
-    const weather = await fetch(`https://wttr.in/${city}?ATm`);
-
-    return weather.text();
+    try {
+      const weather = await fetch(`https://wttr.in/${city}?ATm`);
+      
+      if (!weather.ok) {
+        return `Error: Unable to fetch weather data for "${args.join(" ")}" (Status: ${weather.status})`;
+      }
+      
+      return await weather.text();
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Unknown error';
+      return `Error: Failed to fetch weather data. ${error}`;
+    }
   },
   exit: () => {
     return "Please close the tab to exit.";
